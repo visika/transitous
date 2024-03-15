@@ -11,13 +11,13 @@ import Prelude
 import Elmish (Transition, Dispatch, ReactElement, (<|))
 import Elmish.HTML.Events as E
 import Elmish.HTML.Styled as H
-import Elmish.Component (fork)
+import Elmish.Component (fork, forkMaybe)
 
 import Data.Either (Either(..))
 import Data.Array (length)
 import Effect.Class (liftEffect)
 import Effect.Console (log)
-import Effect.Aff (Aff)
+import Effect.Aff (Aff, delay)
 import Data.Maybe (Maybe(..))
 
 import Data.Argonaut.Decode (decodeJson)
@@ -27,6 +27,10 @@ import Data.Argonaut.Encode (toJsonString)
 
 import Fetch (Method(..), fetch)
 
+import Effect.Now (nowDateTime)
+
+import Data.DateTime (DateTime, diff)
+import Data.Time.Duration (Milliseconds(..))
 
 -- Requests
 type StationGuesserRequest = { input :: String, guess_count :: Int }
@@ -64,13 +68,19 @@ data Message
   | GotResults (Array Station)
   | ShowSuggestions Boolean
   | Select Station
+  | NewInput DateTime
+  | StartGuessRequest String
 
 type State = { entries :: Array Station
              , showSuggestions :: Boolean
              , station :: Maybe Station
              , query :: String
              , placeholderText :: String
+             , lastRequestTime :: Maybe DateTime
              }
+
+debounceDelay :: Milliseconds
+debounceDelay = Milliseconds 150.0
 
 requestGuesses :: String -> Aff (Array Station)
 requestGuesses query = do
@@ -94,21 +104,50 @@ requestGuesses query = do
   where
     logAff = log >>> liftEffect
 
-fetchGuesses :: State -> String -> Transition Message State
-fetchGuesses state query = do
+requestGuessesDebounced :: State -> String -> Transition Message State
+requestGuessesDebounced state query =
+  case state.lastRequestTime of
+    Just lastRequestTime -> do
+      forkMaybe do
+        now <- liftEffect nowDateTime
+        if diff now lastRequestTime > debounceDelay
+          then do
+            guesses <- requestGuesses query
+            pure $ Just (GotResults guesses)
+          else pure Nothing
+      pure state
+    Nothing -> pure state
+
+onSearchChanged :: State -> String -> Transition Message State
+onSearchChanged state query = do
+  -- Update debounce timer
   fork do
-    guesses <- requestGuesses query
-    pure (GotResults guesses)
+    now <- liftEffect nowDateTime
+    pure (NewInput now)
+
+  -- Start request after delay
+  fork do
+    delay debounceDelay
+    pure (StartGuessRequest query)
+
   pure state { query = query, station = Nothing}
 
 init :: String -> Transition Message State
-init placeholderText = pure { entries: [], showSuggestions: false, station: Nothing, query: "", placeholderText: placeholderText }
+init placeholderText = pure { entries: []
+                            , showSuggestions: false
+                            , station: Nothing
+                            , query: ""
+                            , placeholderText: placeholderText
+                            , lastRequestTime: Nothing
+                            }
 
 update :: State -> Message -> Transition Message State
-update state (SearchChanged query) = fetchGuesses state query
+update state (SearchChanged query) = onSearchChanged state query
 update state (GotResults results) = pure state { entries = results }
 update state (ShowSuggestions s) = pure state { showSuggestions = s }
 update state (Select station) = pure state { showSuggestions = false, station = Just station }
+update state (NewInput time) = pure state { lastRequestTime = Just time }
+update state (StartGuessRequest query) = requestGuessesDebounced state query
 
 view :: State -> Dispatch Message -> ReactElement
 view state dispatch = H.div "mt-2"

@@ -19,6 +19,7 @@ Need help? See the following resources:
   , "arrays"
   , "bifunctors"
   , "console"
+  , "datetime"
   , "effect"
   , "either"
   , "elmish"
@@ -26,6 +27,7 @@ Need help? See the following resources:
   , "fetch"
   , "form-urlencoded"
   , "maybe"
+  , "now"
   , "prelude"
   , "tuples"
   ]
