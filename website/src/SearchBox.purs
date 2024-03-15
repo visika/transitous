@@ -34,22 +34,22 @@ import Data.Time.Duration (Milliseconds(..))
 
 -- Requests
 type StationGuesserRequest = { input :: String, guess_count :: Int }
-type MotisRequest = { content_type :: String, content :: StationGuesserRequest, destination :: { type :: String, target :: String }}
+type MotisRequest = { content_type :: String, content :: StationGuesserRequest, destination :: { type :: String, target :: String } }
 
 serializeMotisRequest :: MotisRequest -> String
 serializeMotisRequest = toJsonString
 
 guessRequest :: String -> String
-guessRequest text = serializeMotisRequest {
-    content_type: "StationGuesserRequest",
-    destination: {
-      type: "Module",
-      target: "/guesser"
-    },
-    content: {
-      input: text,
-      guess_count: 10
-    }
+guessRequest text = serializeMotisRequest
+  { content_type: "StationGuesserRequest"
+  , destination:
+      { type: "Module"
+      , target: "/guesser"
+      }
+  , content:
+      { input: text
+      , guess_count: 10
+      }
   }
 
 -- Response
@@ -62,7 +62,6 @@ parseMotisResponse text = do
   decoded <- parseJson text
   decodeJson decoded
 
-
 data Message
   = SearchChanged String
   | GotResults (Array Station)
@@ -71,38 +70,40 @@ data Message
   | NewInput DateTime
   | StartGuessRequest String
 
-type State = { entries :: Array Station
-             , showSuggestions :: Boolean
-             , station :: Maybe Station
-             , query :: String
-             , placeholderText :: String
-             , lastRequestTime :: Maybe DateTime
-             }
+type State =
+  { entries :: Array Station
+  , showSuggestions :: Boolean
+  , station :: Maybe Station
+  , query :: String
+  , placeholderText :: String
+  , lastRequestTime :: Maybe DateTime
+  }
 
 debounceDelay :: Milliseconds
 debounceDelay = Milliseconds 150.0
 
 requestGuesses :: String -> Aff (Array Station)
 requestGuesses query = do
-    let requestUrl = "https://routing.spline.de/api/"
-    { status, statusText, text } <- fetch requestUrl { method: POST
-                                                     , headers: { "Content-Type": "application/json" }
-                                                     , body: guessRequest query
-                                                     }
-    responseBody <- text
+  let requestUrl = "https://routing.spline.de/api/"
+  { status, statusText, text } <- fetch requestUrl
+    { method: POST
+    , headers: { "Content-Type": "application/json" }
+    , body: guessRequest query
+    }
+  responseBody <- text
 
-    if status /= 200 then do
-      logAff (statusText <> responseBody)
-      pure []
-    else do
-      let result = parseMotisResponse responseBody
-      case result of
-        Left err -> do
-          logAff (show err)
-          pure []
-        Right response -> pure (response.content.guesses)
+  if status /= 200 then do
+    logAff (statusText <> responseBody)
+    pure []
+  else do
+    let result = parseMotisResponse responseBody
+    case result of
+      Left err -> do
+        logAff (show err)
+        pure []
+      Right response -> pure (response.content.guesses)
   where
-    logAff = log >>> liftEffect
+  logAff = log >>> liftEffect
 
 requestGuessesDebounced :: State -> String -> Transition Message State
 requestGuessesDebounced state query =
@@ -110,11 +111,10 @@ requestGuessesDebounced state query =
     Just lastRequestTime -> do
       forkMaybe do
         now <- liftEffect nowDateTime
-        if diff now lastRequestTime > debounceDelay
-          then do
-            guesses <- requestGuesses query
-            pure $ Just (GotResults guesses)
-          else pure Nothing
+        if diff now lastRequestTime > debounceDelay then do
+          guesses <- requestGuesses query
+          pure $ Just (GotResults guesses)
+        else pure Nothing
       pure state
     Nothing -> pure state
 
@@ -130,16 +130,17 @@ onSearchChanged state query = do
     delay debounceDelay
     pure (StartGuessRequest query)
 
-  pure state { query = query, station = Nothing}
+  pure state { query = query, station = Nothing }
 
 init :: String -> Transition Message State
-init placeholderText = pure { entries: []
-                            , showSuggestions: false
-                            , station: Nothing
-                            , query: ""
-                            , placeholderText: placeholderText
-                            , lastRequestTime: Nothing
-                            }
+init placeholderText = pure
+  { entries: []
+  , showSuggestions: false
+  , station: Nothing
+  , query: ""
+  , placeholderText: placeholderText
+  , lastRequestTime: Nothing
+  }
 
 update :: State -> Message -> Transition Message State
 update state (SearchChanged query) = onSearchChanged state query
@@ -152,20 +153,21 @@ update state (StartGuessRequest query) = requestGuessesDebounced state query
 view :: State -> Dispatch Message -> ReactElement
 view state dispatch = H.div "mt-2"
   [ H.input_ "form-control mb-2"
-          { onChange: dispatch <| E.inputText >>> SearchChanged
-          , onFocus: dispatch <| ShowSuggestions true
-          , placeholder: state.placeholderText
-          , value: case state.station of
-                        Just {name} -> name
-                        Nothing -> state.query
-          }
-  , if state.showSuggestions && (length state.entries) > 0
-        then H.ul "dropdown-menu show" $ suggestionEntries
-        else H.ul "dropdown-menu" $ suggestionEntries
+      { onChange: dispatch <| E.inputText >>> SearchChanged
+      , onFocus: dispatch <| ShowSuggestions true
+      , placeholder: state.placeholderText
+      , value: case state.station of
+          Just { name } -> name
+          Nothing -> state.query
+      }
+  , if state.showSuggestions && (length state.entries) > 0 then H.ul "dropdown-menu show" $ suggestionEntries
+    else H.ul "dropdown-menu" $ suggestionEntries
   ]
   where
-    suggestionEntries =
-      map (\{name, id, pos} -> H.li_ "dropdown-item"
-          { onClick: dispatch <| Select {name, id, pos}} name)
-            state.entries
-
+  suggestionEntries =
+    map
+      ( \{ name, id, pos } -> H.li_ "dropdown-item"
+          { onClick: dispatch <| Select { name, id, pos } }
+          name
+      )
+      state.entries

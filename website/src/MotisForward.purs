@@ -17,7 +17,6 @@ import Data.Semigroup ((<>))
 
 import SearchBox
 
-
 type StationMessage = { type :: String, station :: Station }
 
 toStationMessage :: Station -> StationMessage
@@ -28,8 +27,8 @@ encodeStation = toJsonString <<< toStationMessage
 
 toMotisWebUrl :: Station -> Station -> String
 toMotisWebUrl start destination = "http://localhost:8000/?motis=https%3A%2F%2Frouting.spline.de%2Fapi%2F&" <> urlQuery
-    where
-        urlQuery = fromMaybe "" $ encode $ fromArray [
-            Tuple "fromLocation" (Just (encodeStation start)),
-            Tuple "toLocation" (Just (encodeStation destination))
-        ]
+  where
+  urlQuery = fromMaybe "" $ encode $ fromArray
+    [ Tuple "fromLocation" (Just (encodeStation start))
+    , Tuple "toLocation" (Just (encodeStation destination))
+    ]

@@ -19,7 +19,6 @@ import Data.Maybe (fromMaybe)
 import SearchBox as SearchBox
 import MotisForward (toMotisWebUrl)
 
-
 data Message
   = DepartureMsg SearchBox.Message
   | ArrivalMsg SearchBox.Message
@@ -43,14 +42,15 @@ update state (ArrivalMsg msg) =
 
 view :: State -> Dispatch Message -> ReactElement
 view state dispatch = H.div "p-4"
-  [ SearchBox.view state.departureBox (dispatch <<< DepartureMsg )
+  [ SearchBox.view state.departureBox (dispatch <<< DepartureMsg)
   , SearchBox.view state.arrivalBox (dispatch <<< ArrivalMsg)
-  , H.a_ "btn btn-primary mt-2" {
-      href: fromMaybe "" do
-        start <- state.departureBox.station
-        destination <- state.arrivalBox.station
-        pure $ toMotisWebUrl start destination
-    } "Search"
+  , H.a_ "btn btn-primary mt-2"
+      { href: fromMaybe "" do
+          start <- state.departureBox.station
+          destination <- state.arrivalBox.station
+          pure $ toMotisWebUrl start destination
+      }
+      "Search"
   ]
 
 main :: Effect Unit
