@@ -26,7 +26,7 @@ encodeStation :: Station -> String
 encodeStation = toJsonString <<< toStationMessage
 
 toMotisWebUrl :: Station -> Station -> String
-toMotisWebUrl start destination = "http://localhost:8000/?motis=https%3A%2F%2Frouting.spline.de%2Fapi%2F&" <> urlQuery
+toMotisWebUrl start destination = "https://routing.spline.de/?motis=https%3A%2F%2Frouting.spline.de%2Fapi&" <> urlQuery
   where
   urlQuery = fromMaybe "" $ encode $ fromArray
     [ Tuple "fromLocation" (Just (encodeStation start))
